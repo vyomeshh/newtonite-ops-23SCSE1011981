@@ -329,7 +329,7 @@ def run_seed():
         session.bulk_save_objects(activity_to_insert)
         session.commit()
         print(f"[SEED] Created {len(activity_to_insert)} activity events.")
-        print("[SEED] ✓ Seed completed successfully!")
+        print("[SEED] [OK] Seed completed successfully!")
 
     except Exception as e:
         session.rollback()

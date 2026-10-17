@@ -7,14 +7,13 @@ from app.config import settings
 
 
 # ---------------------------------------------------------------------------
-# Async engine & session (used by FastAPI at runtime)
-# ---------------------------------------------------------------------------
+is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+
 async_engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    pool_size=20,
-    max_overflow=10,
     pool_pre_ping=True,
+    **({} if is_sqlite else {"pool_size": 20, "max_overflow": 10}),
 )
 
 AsyncSessionLocal = async_sessionmaker(
@@ -30,8 +29,8 @@ AsyncSessionLocal = async_sessionmaker(
 sync_engine = create_engine(
     settings.DATABASE_URL_SYNC,
     echo=False,
-    pool_size=5,
     pool_pre_ping=True,
+    **({} if is_sqlite else {"pool_size": 5}),
 )
 
 SyncSessionLocal = sessionmaker(bind=sync_engine)

@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
     String,
     Text,
     UniqueConstraint,
@@ -22,6 +23,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+
+JSONType = JSON().with_variant(JSONB, "postgresql")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -170,8 +173,8 @@ class ActivityEvent(Base):
     work_item_id = Column(Integer, ForeignKey("work_items.id", ondelete="CASCADE"), nullable=False, index=True)
     actor_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     event_type = Column(Enum(EventType, name="event_type_enum", create_constraint=True), nullable=False)
-    old_value = Column(JSONB, nullable=True)
-    new_value = Column(JSONB, nullable=True)
+    old_value = Column(JSONType, nullable=True)
+    new_value = Column(JSONType, nullable=True)
     comment_text = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
@@ -190,7 +193,7 @@ class IdempotencyKey(Base):
     endpoint = Column(String(500), nullable=False)
     request_hash = Column(String(64), nullable=False)
     response_status = Column(Integer, nullable=False)
-    response_body = Column(JSONB, nullable=True)
+    response_body = Column(JSONType, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
 
@@ -201,7 +204,7 @@ class OutboxJob(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     event_type = Column(Enum(OutboxEventType, name="outbox_event_type_enum", create_constraint=True), nullable=False)
     dedupe_key = Column(String(500), unique=True, nullable=False)
-    payload = Column(JSONB, nullable=False)
+    payload = Column(JSONType, nullable=False)
     status = Column(Enum(OutboxStatus, name="outbox_status_enum", create_constraint=True), nullable=False, default=OutboxStatus.PENDING)
     attempts = Column(Integer, nullable=False, default=0)
     max_attempts = Column(Integer, nullable=False, default=3)
