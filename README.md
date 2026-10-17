@@ -13,30 +13,23 @@
 
 **Newtonite Ops** is a high-concurrency, mission-critical operational command center engineered for organizations operating under extreme pressure. Unlike standard CRUD applications that fail under concurrent mutations and network retries, Newtonite Ops implements enterprise distributed systems patterns directly into the PostgreSQL storage engine and application layer.
 
+```mermaid
+flowchart TD
+    Client["Vite + React 18 SPA (Dark Ops UI)"]
+    API["FastAPI Async API Layer (Port 8000)"]
+    DB[("PostgreSQL 16 Engine (Port 5432)")]
+    Worker["Outbox Background Worker (Asyncio Loop)"]
+
+    Client -->|"HTTP / JWT (Bearer Token)"| API
+    API -->|"SELECT ... FOR UPDATE (Atomic Claim)"| DB
+    API -->|"Optimistic Version Check (UPDATE ... WHERE v=:v)"| DB
+    API -->|"Idempotency Hash Verification (SHA-256)"| DB
+    API -->|"Write Outbox Job (Atomic Mutation)"| DB
+    Worker -->|"Poll Pending Jobs (SKIP LOCKED)"| DB
+    Worker -->|"Deliver In-App Notifications"| DB
 ```
-                     ┌───────────────────────────────────────────┐
-                     │          Vite + React 18 SPA              │
-                     │  (Dark Ops Theme, TanStack Query v5)      │
-                     └─────────────────────┬─────────────────────┘
-                                           │ HTTP / JWT / SSE
-                                           ▼
-                     ┌───────────────────────────────────────────┐
-                     │          FastAPI Async Backend            │
-                     │    (Pydantic v2, SQLAlchemy 2.0 Async)    │
-                     └──────┬──────────────────────┬─────────────┘
-                            │                      │
-           Atomic Claim /   │                      │ Asynchronous
-       Optimistic Locking   │                      │ Outbox Poller
-                            ▼                      ▼
-                     ┌───────────────────────────────────────────┐
-                     │          PostgreSQL 16 Engine             │
-                     │  - Row-Level Locking (SELECT FOR UPDATE)  │
-                     │  - Versioned Optimistic Concurrency       │
-                     │  - Idempotency Key Vault + SHA-256 Hashes │
-                     │  - Transactional Outbox Job Queue         │
-                     │  - Activity Event Audit Log               │
-                     └───────────────────────────────────────────┘
-```
+
+> 📄 **Detailed Architectural Trade-offs:** See [ENGINEERING_DECISIONS.md](file:///p:/newtonite-ops-23SCSE1011981/ENGINEERING_DECISIONS.md) for full rationale on data modeling, dual-concurrency locking, idempotency guarantees, and outbox delivery.
 
 ---
 
@@ -182,6 +175,25 @@ The application includes an in-app **Operational Pressure Test Lab** accessible 
 
 ---
 
-## 8. License
+## 8. Known Limitations
+
+1. **Single-Node Database Topology:** The application currently runs against a primary PostgreSQL instance. Under extreme write throughput (tens of thousands of simultaneous mutations/sec), read replicas and connection poolers (PgBouncer) would be required.
+2. **In-Process Asyncio Worker:** The outbox processor runs as an `asyncio` task within the FastAPI lifespan. For horizontal multi-instance backend deployments, jobs should either use `SKIP LOCKED` across workers (which the query supports) or migrate to a distributed orchestrator like Celery or Temporal.
+3. **Stateless JWT Invalidation:** JWT access tokens expire after 8 hours; immediate revocation prior to expiration requires introducing a distributed token revocation store (e.g. Redis blocklist).
+4. **Client-Side Polling instead of WebSockets:** The dashboard polls for summary and notification updates every 5–10s. While lightweight and robust against dropped connections, sub-second operational collaboration would benefit from Server-Sent Events (SSE).
+
+---
+
+## 9. Next Week I Would... (Future Roadmap)
+
+- [ ] **Read-Replica Routing:** Separate read-only dashboard summary and search queries to hot standby replicas using SQLAlchemy engine routing.
+- [ ] **Table Partitioning:** Partition `activity_events` and `outbox_jobs` tables by calendar month (`RANGE (created_at)`) to maintain constant query performance as event logs scale past millions of rows.
+- [ ] **Full-Text & Semantic Search:** Integrate PostgreSQL `pg_trgm` and `tsvector` with GIN indexing for sub-millisecond fuzzy search across operational descriptions and comments.
+- [ ] **Live Collaboration via Server-Sent Events (SSE):** Push instant ticket claim and approval events directly to connected operators without polling overhead.
+- [ ] **Automated SLA Escalation Engine:** Background worker that automatically escalates priority to `URGENT` when items approach SLA breach thresholds (`due_date - now() < 1 hour`).
+
+---
+
+## 10. License
 
 Developed for the Newtonite Software Engineering Challenge. MIT License.
